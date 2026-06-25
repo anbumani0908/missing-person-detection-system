@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Missing Person Detector - Dashboard</title>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0a0e27;
+            --bg-secondary: #151933;
+            --bg-tertiary: #1e2338;
+            --accent-red: #ff3366;
+            --accent-orange: #ff8c42;
+            --accent-yellow: #ffd93d;
+            --accent-green: #6bcf7f;
+            --accent-blue: #4da3ff;
+            --accent-purple: #9d4edd;
+            --text-primary: #e8eaed;
+            --text-secondary: #9aa0a6;
+            --text-dim: #5f6368;
+            --border-color: #2d3348;
+            --glow-red: rgba(255, 51, 102, 0.3);
+            --glow-green: rgba(107, 207, 127, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* Animated background */
+        .background-grid {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(77, 163, 255, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(77, 163, 255, 0.05) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: gridMove 20s linear infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @keyframes gridMove {
+            0% { background-position: 0 0; }
+            100% { background-position: 50px 50px; }
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 30px 40px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 200%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(77, 163, 255, 0.1), transparent);
+            animation: shimmer 3s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .header-content {
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            letter-spacing: -0.5px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 24px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 100px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-running { background: var(--accent-green); box-shadow: 0 0 20px var(--glow-green); }
+        .status-stopped { background: var(--accent-red); box-shadow: 0 0 20px var(--glow-red); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover::before {
+            transform: scaleX(1);
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+            border-color: var(--accent-blue);
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+            background: linear-gradient(135deg, var(--text-primary), var(--text-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .stat-sublabel {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            margin-top: 8px;
+        }
+
+        /* Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        @media (max-width: 1200px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-tertiary) 100%);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .panel-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        /* Alert Feed */
+        .alert-feed {
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .alert-feed::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .alert-feed::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+            border-radius: 10px;
+        }
+
+        .alert-feed::-webkit-scrollbar-thumb {
+            background: var(--accent-blue);
+            border-radius: 10px;
+        }
+
+        .alert-item {
+            display: flex;
+            gap: 16px;
+            padding: 16px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            margin-bottom: 12px;
+            transition: all 0.3s ease;
+            animation: slideIn 0.5s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .alert-item:hover {
+            border-color: var(--accent-blue);
+            box-shadow: 0 4px 20px rgba(77, 163, 255, 0.2);
+        }
+
+        .alert-image {
+            width: 80px;
+            height: 80px;
+            border-radius: 8px;
+            object-fit: cover;
+            border: 2px solid var(--border-color);
+        }
+
+        .alert-info {
+            flex: 1;
+        }
+
+        .alert-name {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .alert-meta {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .confidence-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-top: 8px;
+        }
+
+        .confidence-high {
+            background: linear-gradient(135deg, var(--accent-red), #ff1744);
+            color: white;
+            box-shadow: 0 4px 12px var(--glow-red);
+        }
+
+        .confidence-med {
+            background: linear-gradient(135deg, var(--accent-orange), #ff6f00);
+            color: white;
+        }
+
+        .confidence-low {
+            background: linear-gradient(135deg, var(--accent-yellow), #ffc107);
+            color: #333;
+        }
+
+        /* Chart Container */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-top: 20px;
+        }
+
+        /* Database Grid */
+        .database-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 16px;
+            max-height: 500px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .database-item {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .database-item:hover {
+            transform: translateY(-4px);
+            border-color: var(--accent-blue);
+            box-shadow: 0 8px 24px rgba(77, 163, 255, 0.3);
+        }
+
+        .database-image {
+            width: 100%;
+            aspect-ratio: 1;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            border: 2px solid var(--border-color);
+        }
+
+        .database-name {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .database-id {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+        }
+
+        .btn:hover {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(77, 163, 255, 0.4);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            border: none;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--accent-red), #ff1744);
+            border: none;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--text-dim);
+            border-top-color: var(--accent-blue);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Connection Status */
+        .connection-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-family: 'JetBrains Mono', monospace;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+
+        .empty-icon {
+            font-size: 4rem;
+            margin-bottom: 16px;
+            opacity: 0.3;
+        }
+
+        /* Notifications */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            min-width: 300px;
+            padding: 16px 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--accent-green);
+            border-left: 4px solid var(--accent-green);
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            animation: slideInRight 0.3s ease;
+            z-index: 2000;
+        }
+
+        @keyframes slideInRight {
+            from {
+                opacity: 0;
+                transform: translateX(100px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .notification-title {
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .notification-body {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="background-grid"></div>
+    
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="header-content">
+                <div>
+                    <h1>⚡ MISSING PERSON DETECTOR</h1>
+                    <p style="color: var(--text-secondary); margin-top: 8px; font-family: 'JetBrains Mono', monospace;">
+                        Real-time surveillance & alert system
+                    </p>
+                </div>
+                <div class="status-badge">
+                    <div class="status-indicator status-stopped" id="statusIndicator"></div>
+                    <span id="statusText">SYSTEM OFFLINE</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Detections</div>
+                <div class="stat-value" id="totalDetections">0</div>
+                <div class="stat-sublabel">All-time matches</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">High Confidence</div>
+                <div class="stat-value" id="highConfidence" style="color: var(--accent-red);">0</div>
+                <div class="stat-sublabel">Critical alerts</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Unique People</div>
+                <div class="stat-value" id="uniquePeople">0</div>
+                <div class="stat-sublabel">Individuals detected</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">System Uptime</div>
+                <div class="stat-value" id="uptime" style="font-size: 1.8rem;">--:--:--</div>
+                <div class="stat-sublabel">Hours:Minutes:Seconds</div>
+            </div>
+        </div>
+
+        <!-- Content Grid -->
+        <div class="content-grid">
+            <!-- Alert Feed -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">🚨 Recent Alerts</h2>
+                    <div class="controls">
+                        <button class="btn" onclick="refreshAlerts()">↻ Refresh</button>
+                    </div>
+                </div>
+                <div class="alert-feed" id="alertFeed">
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <p>No alerts yet. Waiting for detections...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Timeline Chart -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2 class="panel-title">📊 Detection Timeline</h2>
+                    <select class="btn" id="timelineRange" onchange="updateTimeline()">
+                        <option value="6">Last 6 Hours</option>
+                        <option value="12">Last 12 Hours</option>
+                        <option value="24" selected>Last 24 Hours</option>
+                        <option value="48">Last 48 Hours</option>
+                    </select>
+                </div>
+                <div class="chart-container">
+                    <canvas id="timelineChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Database Panel -->
+        <div class="panel">
+            <div class="panel-header">
+                <h2 class="panel-title">👥 Watchlist Database</h2>
+                <div class="controls">
+                    <button class="btn" onclick="refreshDatabase()">↻ Refresh</button>
+                    <span id="databaseCount" style="color: var(--text-secondary); font-family: 'JetBrains Mono', monospace; font-size: 0.85rem;">0 people</span>
+                </div>
+            </div>
+            <div class="database-grid" id="databaseGrid">
+                <div class="empty-state">
+                    <div class="empty-icon">👤</div>
+                    <p>No people in database</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connection Status -->
+    <div class="connection-status">
+        <div class="status-indicator status-stopped" id="wsIndicator"></div>
+        <span id="wsStatus">Connecting...</span>
+    </div>
+
+    <script>
+        // WebSocket connection
+        const socket = io('http://localhost:5000');
+        let timelineChart = null;
+
+        // Connection status
+        socket.on('connect', () => {
+            updateConnectionStatus(true);
+            loadInitialData();
+        });
+
+        socket.on('disconnect', () => {
+            updateConnectionStatus(false);
+        });
+
+        function updateConnectionStatus(connected) {
+            const indicator = document.getElementById('wsIndicator');
+            const status = document.getElementById('wsStatus');
+            
+            if (connected) {
+                indicator.className = 'status-indicator status-running';
+                status.textContent = 'Connected';
+            } else {
+                indicator.className = 'status-indicator status-stopped';
+                status.textContent = 'Disconnected';
+            }
+        }
+
+        // Stats update
+        socket.on('stats_update', (stats) => {
+            updateStats(stats);
+        });
+
+        // New detection alert
+        socket.on('new_detection', (alert) => {
+            addAlertToFeed(alert);
+            showNotification('New Detection!', `${alert.person_name} detected with ${alert.confidence} confidence`);
+            playAlertSound();
+        });
+
+        function updateStats(stats) {
+            document.getElementById('totalDetections').textContent = stats.total_detections || 0;
+            document.getElementById('highConfidence').textContent = stats.high_confidence || 0;
+            document.getElementById('uniquePeople').textContent = stats.unique_people || 0;
+            
+            // Update uptime
+            if (stats.uptime) {
+                const hours = Math.floor(stats.uptime / 3600);
+                const minutes = Math.floor((stats.uptime % 3600) / 60);
+                const seconds = stats.uptime % 60;
+                document.getElementById('uptime').textContent = 
+                    `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+            } else {
+                document.getElementById('uptime').textContent = '--:--:--';
+            }
+
+            // Update system status
+            const statusIndicator = document.getElementById('statusIndicator');
+            const statusText = document.getElementById('statusText');
+            
+            if (stats.system_status === 'running') {
+                statusIndicator.className = 'status-indicator status-running';
+                statusText.textContent = 'SYSTEM ACTIVE';
+            } else {
+                statusIndicator.className = 'status-indicator status-stopped';
+                statusText.textContent = 'SYSTEM OFFLINE';
+            }
+        }
+
+        function loadInitialData() {
+            loadAlerts();
+            loadDatabase();
+            loadTimeline();
+            loadStats();
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch('http://localhost:5000/api/stats');
+                const stats = await response.json();
+                updateStats(stats);
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        async function loadAlerts() {
+            try {
+                const response = await fetch('http://localhost:5000/api/alerts');
+                const alerts = await response.json();
+                
+                const feed = document.getElementById('alertFeed');
+                if (alerts.length === 0) {
+                    feed.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>No alerts yet. Waiting for detections...</p></div>';
+                    return;
+                }
+                
+                feed.innerHTML = '';
+                alerts.forEach(alert => addAlertToFeed(alert, false));
+            } catch (error) {
+                console.error('Error loading alerts:', error);
+            }
+        }
+
+        function addAlertToFeed(alert, prepend = true) {
+            const feed = document.getElementById('alertFeed');
+            
+            // Remove empty state if present
+            const emptyState = feed.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            const alertElement = document.createElement('div');
+            alertElement.className = 'alert-item';
+            
+            const timestamp = new Date(alert.timestamp).toLocaleString();
+            const confidenceClass = `confidence-${alert.confidence.toLowerCase()}`;
+            
+            alertElement.innerHTML = `
+                <img src="${alert.image}" alt="${alert.person_name}" class="alert-image" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22100%22 height=%22100%22%3E%3Crect fill=%22%231e2338%22 width=%22100%22 height=%22100%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2240%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
+                <div class="alert-info">
+                    <div class="alert-name">${alert.person_name}</div>
+                    <div class="alert-meta">
+                        ${timestamp} • ${alert.camera}
+                    </div>
+                    <div class="confidence-badge ${confidenceClass}">
+                        ${alert.confidence} (${(alert.score * 100).toFixed(1)}%)
+                    </div>
+                </div>
+            `;
+            
+            if (prepend) {
+                feed.insertBefore(alertElement, feed.firstChild);
+            } else {
+                feed.appendChild(alertElement);
+            }
+            
+            // Limit to 20 alerts
+            while (feed.children.length > 20) {
+                feed.removeChild(feed.lastChild);
+            }
+        }
+
+        async function loadDatabase() {
+            try {
+                const response = await fetch('http://localhost:5000/api/database');
+                const people = await response.json();
+                
+                const grid = document.getElementById('databaseGrid');
+                const countEl = document.getElementById('databaseCount');
+                
+                countEl.textContent = `${people.length} ${people.length === 1 ? 'person' : 'people'}`;
+                
+                if (people.length === 0) {
+                    grid.innerHTML = '<div class="empty-state"><div class="empty-icon">👤</div><p>No people in database</p></div>';
+                    return;
+                }
+                
+                grid.innerHTML = '';
+                people.forEach(person => {
+                    const item = document.createElement('div');
+                    item.className = 'database-item';
+                    item.innerHTML = `
+                        <img src="${person.image}" alt="${person.name}" class="database-image" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22150%22 height=%22150%22%3E%3Crect fill=%22%231e2338%22 width=%22150%22 height=%22150%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 font-size=%2260%22 text-anchor=%22middle%22 dy=%22.3em%22%3E👤%3C/text%3E%3C/svg%3E'">
+                        <div class="database-name" title="${person.name}">${person.name}</div>
+                        <div class="database-id">ID: ${person.id}</div>
+                    `;
+                    grid.appendChild(item);
+                });
+            } catch (error) {
+                console.error('Error loading database:', error);
+            }
+        }
+
+        async function loadTimeline() {
+            const hours = document.getElementById('timelineRange').value;
+            
+            try {
+                const response = await fetch(`http://localhost:5000/api/timeline?hours=${hours}`);
+                const data = await response.json();
+                
+                const ctx = document.getElementById('timelineChart').getContext('2d');
+                
+                if (timelineChart) {
+                    timelineChart.destroy();
+                }
+                
+                timelineChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'Detections',
+                            data: data.data,
+                            borderColor: '#4da3ff',
+                            backgroundColor: 'rgba(77, 163, 255, 0.1)',
+                            fill: true,
+                            tension: 0.4,
+                            borderWidth: 2,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#4da3ff',
+                            pointBorderColor: '#0a0e27',
+                            pointBorderWidth: 2,
+                            pointHoverRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                backgroundColor: '#1e2338',
+                                titleColor: '#e8eaed',
+                                bodyColor: '#9aa0a6',
+                                borderColor: '#2d3348',
+                                borderWidth: 1,
+                                padding: 12,
+                                displayColors: false
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    color: '#9aa0a6',
+                                    precision: 0
+                                },
+                                grid: {
+                                    color: '#2d3348',
+                                    drawBorder: false
+                                }
+                            },
+                            x: {
+                                ticks: {
+                                    color: '#9aa0a6',
+                                    maxRotation: 0
+                                },
+                                grid: {
+                                    color: '#2d3348',
+                                    drawBorder: false
+                                }
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading timeline:', error);
+            }
+        }
+
+        function updateTimeline() {
+            loadTimeline();
+        }
+
+        function refreshAlerts() {
+            loadAlerts();
+        }
+
+        function refreshDatabase() {
+            loadDatabase();
+        }
+
+        function showNotification(title, body) {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.innerHTML = `
+                <div class="notification-title">${title}</div>
+                <div class="notification-body">${body}</div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideInRight 0.3s ease reverse';
+                setTimeout(() => notification.remove(), 300);
+            }, 5000);
+        }
+
+        function playAlertSound() {
+            // Create a simple beep sound
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.frequency.value = 800;
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+            
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + 0.5);
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(() => {
+            loadStats();
+        }, 30000);
+    </script>
+</body>
+</html>

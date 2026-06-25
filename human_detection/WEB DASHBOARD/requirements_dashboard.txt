@@ -1,0 +1,23 @@
+# Web Dashboard Requirements
+# Install with: pip install -r requirements_dashboard.txt
+
+# Web Server & API
+flask==3.0.0
+flask-cors==4.0.0
+flask-socketio==5.3.5
+python-socketio==5.10.0
+
+# File Monitoring
+watchdog==3.0.0
+
+# Utilities
+requests==2.31.0
+
+# Note: These are IN ADDITION to the main detector requirements:
+# - opencv-python
+# - numpy
+# - insightface
+# - faiss-cpu (or faiss-gpu)
+# - pyttsx3 (optional, for voice)
+# - gtts (optional, for voice)
+# - pygame (optional, for voice)
